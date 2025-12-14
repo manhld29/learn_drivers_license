@@ -132,11 +132,11 @@ const Index = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.map((config) => (
-              <button
+              <div
                 key={config.category}
                 onClick={() => setSelectedCategory(config.category)}
                 className={cn(
-                  "p-6 rounded-xl border-2 transition-all duration-300 text-left",
+                  "p-6 rounded-xl border-2 transition-all duration-300 text-left cursor-pointer relative",
                   selectedCategory === config.category
                     ? 'border-primary bg-primary/10 shadow-lg'
                     : 'border-border bg-card hover:border-primary/50 hover:shadow-md'
@@ -147,9 +147,16 @@ const Index = () => {
                     {config.category}
                   </div>
                   {selectedCategory === config.category && (
-                    <div className="bg-success text-success-foreground p-2 rounded-full">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAppMode('exam');
+                      }}
+                      className="bg-success text-success-foreground p-2 rounded-full hover:bg-success/90 transition-colors shadow-sm hover:scale-110 active:scale-95"
+                      title="Bắt đầu thi ngay"
+                    >
                       <ChevronRight className="w-5 h-5" />
-                    </div>
+                    </button>
                   )}
                 </div>
 
@@ -169,7 +176,7 @@ const Index = () => {
                     <span>{config.diemLietCount} điểm liệt</span>
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
 
