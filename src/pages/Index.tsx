@@ -54,7 +54,7 @@ const Index = () => {
             </h1>
           </div>
           <p className="text-lg md:text-xl opacity-90 max-w-2xl mx-auto">
-            Hệ thống thi thử giấy phép lái xe theo chuẩn Bộ Công an
+            Hệ thống thi thử giấy phép lái xe theo đề chuẩn Bộ Công an
           </p>
         </div>
       </header>
