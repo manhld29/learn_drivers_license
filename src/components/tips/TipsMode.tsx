@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { tipsData, mockQuestionsB2 } from '@/data/mockQuestions';
 import { Tip } from '@/types/exam';
-import { ChevronLeft, Lightbulb, BookOpen, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Lightbulb, BookOpen, AlertCircle, Trash2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PracticeQuestionCard } from '@/components/practice/PracticeQuestionCard';
 
@@ -12,8 +12,29 @@ interface TipsModeProps {
 export const TipsMode: React.FC<TipsModeProps> = ({ onExit }) => {
     const [selectedTip, setSelectedTip] = useState<Tip | null>(null);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-    const [answers, setAnswers] = useState<Record<number, string>>({});
-    const [showResults, setShowResults] = useState<Record<number, boolean>>({});
+    const [showResetMenu, setShowResetMenu] = useState(false);
+
+    // Persistence: Answers
+    const [answers, setAnswers] = useState<Record<number, string>>(() => {
+        const saved = localStorage.getItem('tips_answers');
+        return saved ? JSON.parse(saved) : {};
+    });
+
+    // Persistence: ShowResults
+    const [showResults, setShowResults] = useState<Record<number, boolean>>(() => {
+        const saved = localStorage.getItem('tips_answers');
+        if (!saved) return {};
+        const parsed = JSON.parse(saved);
+        return Object.keys(parsed).reduce((acc, key) => ({
+            ...acc,
+            [Number(key)]: true
+        }), {});
+    });
+
+    // Save to localStorage
+    useEffect(() => {
+        localStorage.setItem('tips_answers', JSON.stringify(answers));
+    }, [answers]);
 
     // Helper to get questions for a tip
     const getQuestionsForTip = (tip: Tip) => {
@@ -24,11 +45,32 @@ export const TipsMode: React.FC<TipsModeProps> = ({ onExit }) => {
 
     const handleSelectTip = (tip: Tip) => {
         setSelectedTip(tip);
-        // Reset state when changing tip
+        // Reset index but KEEP answers (global persistence)
         setCurrentQuestionIndex(0);
-        setAnswers({});
-        setShowResults({});
         window.scrollTo(0, 0);
+    };
+
+    const handleClearAll = () => {
+        if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử làm bài Mẹo?')) {
+            setAnswers({});
+            setShowResults({});
+            localStorage.removeItem('tips_answers');
+            setShowResetMenu(false);
+        }
+    };
+
+    const handleClearCurrent = (currentQuestionId?: number) => {
+        if (!currentQuestionId) return;
+
+        const newAnswers = { ...answers };
+        delete newAnswers[currentQuestionId];
+        setAnswers(newAnswers);
+
+        const newShowResults = { ...showResults };
+        delete newShowResults[currentQuestionId];
+        setShowResults(newShowResults);
+
+        setShowResetMenu(false);
     };
 
     const handleSelectAnswer = (questionId: number, answer: string) => {
@@ -58,6 +100,36 @@ export const TipsMode: React.FC<TipsModeProps> = ({ onExit }) => {
                             <p className="text-sm text-muted-foreground">
                                 Câu {currentQuestionIndex + 1}/{questions.length}
                             </p>
+                        </div>
+
+                        {/* Reset Menu */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowResetMenu(!showResetMenu)}
+                                className="p-2 hover:bg-gray-100 rounded-full text-muted-foreground hover:text-destructive transition-colors relative z-10"
+                                title="Tùy chọn"
+                            >
+                                <Trash2 className="w-5 h-5" />
+                            </button>
+
+                            {showResetMenu && (
+                                <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-border rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                    <button
+                                        onClick={() => handleClearCurrent(currentQuestion?.id)}
+                                        className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm flex items-center gap-2"
+                                    >
+                                        <RotateCcw className="w-4 h-4" />
+                                        Làm lại câu này
+                                    </button>
+                                    <button
+                                        onClick={handleClearAll}
+                                        className="w-full text-left px-4 py-3 hover:bg-red-50 text-destructive text-sm flex items-center gap-2 border-t"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                        Xóa toàn bộ
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </header>

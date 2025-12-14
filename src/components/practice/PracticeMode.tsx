@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Question, TOPICS } from '@/types/exam';
 import { mockQuestionsB2 } from '@/data/mockQuestions';
 import { TopicSelector } from './TopicSelector';
@@ -11,7 +11,9 @@ import {
   BookOpen,
   CheckCircle2,
   XCircle,
-  Trophy
+  Trophy,
+  Trash2,
+  MoreVertical
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -23,9 +25,27 @@ export const PracticeMode = ({ onExit }: PracticeModeProps) => {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [isPracticing, setIsPracticing] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [showResults, setShowResults] = useState<Record<number, boolean>>({});
+
+  // Load saved answers from localStorage
+  const [answers, setAnswers] = useState<Record<number, string>>(() => {
+    const saved = localStorage.getItem('practice_answers');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Initialize showResults based on answers
+  const [showResults, setShowResults] = useState<Record<number, boolean>>(() => {
+    const saved = localStorage.getItem('practice_answers');
+    if (!saved) return {};
+    const parsed = JSON.parse(saved);
+    // If we have an answer, we show the result
+    return Object.keys(parsed).reduce((acc, key) => ({
+      ...acc,
+      [Number(key)]: true
+    }), {});
+  });
+
   const [stats, setStats] = useState({ correct: 0, wrong: 0 });
+  const [showResetMenu, setShowResetMenu] = useState(false);
 
   // Filter questions by topic
   const filteredQuestions = useMemo(() => {
@@ -37,6 +57,57 @@ export const PracticeMode = ({ onExit }: PracticeModeProps) => {
     }
     return mockQuestionsB2.filter(q => q.topic === selectedTopic);
   }, [selectedTopic]);
+
+  // Save to localStorage whenever answers change
+  useEffect(() => {
+    localStorage.setItem('practice_answers', JSON.stringify(answers));
+  }, [answers]);
+
+  // Recalculate stats whenever answers or filteredQuestions change
+  useEffect(() => {
+    if (!isPracticing) return;
+
+    let correct = 0;
+    let wrong = 0;
+
+    filteredQuestions.forEach(q => {
+      const userAnswer = answers[q.id];
+      if (userAnswer) {
+        if (userAnswer === q.correctAnswer) {
+          correct++;
+        } else {
+          wrong++;
+        }
+      }
+    });
+
+    setStats({ correct, wrong });
+  }, [isPracticing, filteredQuestions, answers]);
+
+  const handleClearAll = () => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ lịch sử làm bài?')) {
+      setAnswers({});
+      setShowResults({});
+      localStorage.removeItem('practice_answers');
+      setStats({ correct: 0, wrong: 0 });
+      setShowResetMenu(false);
+    }
+  };
+
+  const handleClearCurrent = () => {
+    if (!filteredQuestions[currentQuestionIndex]) return;
+    const currentId = filteredQuestions[currentQuestionIndex].id;
+
+    const newAnswers = { ...answers };
+    delete newAnswers[currentId];
+    setAnswers(newAnswers);
+
+    const newShowResults = { ...showResults };
+    delete newShowResults[currentId];
+    setShowResults(newShowResults);
+
+    setShowResetMenu(false);
+  };
 
   // Calculate question counts per topic
   const topicQuestionCounts = useMemo(() => {
@@ -58,13 +129,6 @@ export const PracticeMode = ({ onExit }: PracticeModeProps) => {
 
     setAnswers(prev => ({ ...prev, [currentQuestion.id]: answer }));
     setShowResults(prev => ({ ...prev, [currentQuestion.id]: true }));
-
-    // Update stats
-    if (answer === currentQuestion.correctAnswer) {
-      setStats(prev => ({ ...prev, correct: prev.correct + 1 }));
-    } else {
-      setStats(prev => ({ ...prev, wrong: prev.wrong + 1 }));
-    }
   };
 
   const handleNextQuestion = () => {
@@ -79,21 +143,34 @@ export const PracticeMode = ({ onExit }: PracticeModeProps) => {
     }
   };
 
+  // Only reset position, NOT data
   const handleRestart = () => {
     setCurrentQuestionIndex(0);
-    setAnswers({});
-    setShowResults({});
-    setStats({ correct: 0, wrong: 0 });
+    // Do NOT clear answers/results here to preserve persistence
+    // Stats will recalculate based on answers
   };
 
   const handleBackToTopics = () => {
     setIsPracticing(false);
-    handleRestart();
+    setCurrentQuestionIndex(0);
   };
 
-  const handleStartPractice = () => {
-    if (filteredQuestions.length > 0) {
-      handleRestart();
+
+
+  const handleSelectTopic = (topic: string | null) => {
+    // Check if there are any questions for this topic before starting
+    let count = 0;
+    if (topic === null) {
+      count = mockQuestionsB2.length;
+    } else if (topic === 'diem-liet') {
+      count = mockQuestionsB2.filter(q => q.isDiemLiet).length;
+    } else {
+      count = mockQuestionsB2.filter(q => q.topic === topic).length;
+    }
+
+    if (count > 0) {
+      setSelectedTopic(topic);
+      setCurrentQuestionIndex(0);
       setIsPracticing(true);
     }
   };
@@ -130,28 +207,9 @@ export const PracticeMode = ({ onExit }: PracticeModeProps) => {
 
             <TopicSelector
               selectedTopic={selectedTopic}
-              onSelectTopic={setSelectedTopic}
+              onSelectTopic={handleSelectTopic}
               topicQuestionCounts={topicQuestionCounts}
             />
-
-            {/* Start Button */}
-            <div className="mt-8">
-              <button
-                onClick={handleStartPractice}
-                disabled={filteredQuestions.length === 0}
-                className={cn(
-                  "w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300",
-                  filteredQuestions.length > 0
-                    ? "bg-success hover:bg-success/90 text-success-foreground shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
-                    : "bg-muted text-muted-foreground cursor-not-allowed"
-                )}
-              >
-                {filteredQuestions.length > 0
-                  ? `BẮT ĐẦU LUYỆN TẬP (${filteredQuestions.length} câu)`
-                  : "Không có câu hỏi"
-                }
-              </button>
-            </div>
 
             {/* Practice Info */}
             <div className="mt-8 bg-card border border-border rounded-xl p-6">
@@ -214,10 +272,40 @@ export const PracticeMode = ({ onExit }: PracticeModeProps) => {
             <button
               onClick={handleRestart}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+              title="Làm lại từ câu 1 (Giữ nguyên đáp án)"
             >
               <RotateCcw className="w-5 h-5" />
-              <span className="hidden sm:inline">Làm lại</span>
+              <span className="hidden sm:inline">Câu 1</span>
             </button>
+
+            <div className="relative">
+              <button
+                onClick={() => setShowResetMenu(!showResetMenu)}
+                className="flex items-center gap-2 text-muted-foreground hover:text-destructive transition-colors p-2"
+                title="Xóa lịch sử làm bài"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+
+              {showResetMenu && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-border rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                  <button
+                    onClick={handleClearCurrent}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-100 text-sm flex items-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Làm lại câu này
+                  </button>
+                  <button
+                    onClick={handleClearAll}
+                    className="w-full text-left px-4 py-3 hover:bg-red-50 text-destructive text-sm flex items-center gap-2 border-t"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Xóa toàn bộ
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Progress Bar */}
