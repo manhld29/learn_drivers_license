@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { tipsData, mockQuestionsB2 } from '@/data/mockQuestions';
 import { Tip } from '@/types/exam';
-import { ChevronLeft, Lightbulb, BookOpen, AlertCircle, Trash2, RotateCcw } from 'lucide-react';
+import { ChevronLeft, Lightbulb, BookOpen, AlertCircle, Trash2, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PracticeQuestionCard } from '@/components/practice/PracticeQuestionCard';
 
@@ -38,9 +38,10 @@ export const TipsMode: React.FC<TipsModeProps> = ({ onExit }) => {
 
     // Helper to get questions for a tip
     const getQuestionsForTip = (tip: Tip) => {
-        // tipsData questions are strings like "1", "2", etc.
-        // mockQuestionsB2 IDs are numbers
-        return mockQuestionsB2.filter(q => tip.questions.includes(q.id.toString()));
+        // Map through the question IDs in the tip to preserve order
+        return tip.questions
+            .map(id => mockQuestionsB2.find(q => q.id.toString() === id))
+            .filter((q): q is typeof mockQuestionsB2[0] => !!q);
     };
 
     const handleSelectTip = (tip: Tip) => {
@@ -169,7 +170,10 @@ export const TipsMode: React.FC<TipsModeProps> = ({ onExit }) => {
                             {currentQuestion ? (
                                 <div className="space-y-6">
                                     <PracticeQuestionCard
-                                        question={currentQuestion}
+                                        question={{
+                                            ...currentQuestion,
+                                            question: `Câu ${currentQuestion.id}: ${currentQuestion.question}`
+                                        }}
                                         questionNumber={currentQuestionIndex + 1}
                                         totalQuestions={questions.length}
                                         selectedAnswer={answers[currentQuestion.id] || null}
@@ -236,28 +240,47 @@ export const TipsMode: React.FC<TipsModeProps> = ({ onExit }) => {
             {/* Tip List */}
             <main className="container mx-auto px-4 py-8 max-w-5xl">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {tipsData.tips.map((tip, idx) => (
-                        <button
-                            key={idx}
-                            onClick={() => handleSelectTip(tip)}
-                            className="bg-card hover:bg-accent/50 border-2 border-border hover:border-primary/50 rounded-xl p-5 text-left transition-all hover:shadow-md group h-full flex flex-col"
-                        >
-                            <div className="flex items-start justify-between mb-3 w-full">
-                                <div className="bg-amber-100 text-amber-700 px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider">
-                                    Mẹo #{idx + 1}
-                                </div>
-                                <div className="text-muted-foreground flex items-center gap-1 text-xs">
-                                    <BookOpen className="w-3 h-3" />
-                                    <span>{tip.questions.length} câu</span>
-                                </div>
-                            </div>
+                    {tipsData.tips.map((tip, idx) => {
+                        const completedCount = tip.questions.filter(qId => answers[Number(qId)]).length;
+                        const isCompleted = completedCount > 0 && completedCount === tip.questions.length;
 
-                            <div
-                                className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-3 mb-2 flex-grow"
-                                dangerouslySetInnerHTML={{ __html: tip.tip }}
-                            />
-                        </button>
-                    ))}
+                        return (
+                            <button
+                                key={idx}
+                                onClick={() => handleSelectTip(tip)}
+                                className={cn(
+                                    "bg-card hover:bg-accent/50 border-2 rounded-xl p-5 text-left transition-all hover:shadow-md group h-full flex flex-col relative overflow-hidden",
+                                    isCompleted
+                                        ? "border-success/50 bg-success/5"
+                                        : "border-border hover:border-primary/50"
+                                )}
+                            >
+                                {isCompleted && (
+                                    <div className="absolute top-0 right-0 p-1.5 bg-success text-success-foreground rounded-bl-xl shadow-sm">
+                                        <CheckCircle2 className="w-4 h-4" />
+                                    </div>
+                                )}
+
+                                <div className="flex items-start justify-between mb-3 w-full pr-6">
+                                    <div className="bg-amber-100 text-amber-700 px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider">
+                                        Mẹo #{idx + 1}
+                                    </div>
+                                    <div className={cn(
+                                        "flex items-center gap-1 text-xs font-medium",
+                                        completedCount === tip.questions.length ? "text-success" : "text-muted-foreground"
+                                    )}>
+                                        <BookOpen className="w-3 h-3" />
+                                        <span>{completedCount}/{tip.questions.length} câu</span>
+                                    </div>
+                                </div>
+
+                                <div
+                                    className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-3 mb-2 flex-grow"
+                                    dangerouslySetInnerHTML={{ __html: tip.tip }}
+                                />
+                            </button>
+                        );
+                    })}
                 </div>
             </main>
         </div>
